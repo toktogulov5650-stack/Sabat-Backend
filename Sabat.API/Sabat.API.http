@@ -1,0 +1,53 @@
+@host = http://localhost:5213
+@adminKey = local-development-key-change-before-use
+@adminEmail = admin@example.com
+@adminPassword = Replace-With-A-Strong-Password-123!
+
+### Health
+GET {{host}}/health
+
+### Published news
+GET {{host}}/api/news?lang=ru&page=1&pageSize=12
+
+### Latest news for the home page
+GET {{host}}/api/news/latest?lang=ru&take=3
+
+### Submit a contact message
+POST {{host}}/api/contact
+Content-Type: application/json
+
+{
+  "name": "Иван",
+  "email": "ivan@example.com",
+  "message": "Хочу предложить сотрудничество с фондом Sabat.",
+  "language": "ru",
+  "website": ""
+}
+
+### Admin: contact messages
+GET {{host}}/api/admin/contacts?page=1&pageSize=20
+X-Admin-Key: {{adminKey}}
+
+### Admin: create the first account (works only while the table is empty)
+POST {{host}}/api/admin/auth/bootstrap
+Content-Type: application/json
+X-Admin-Key: {{adminKey}}
+
+{
+  "email": "{{adminEmail}}",
+  "displayName": "Sabat administrator",
+  "password": "{{adminPassword}}"
+}
+
+### Admin: login (the client stores the returned cookies)
+POST {{host}}/api/admin/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{adminEmail}}",
+  "password": "{{adminPassword}}"
+}
+
+### Admin: all news
+GET {{host}}/api/admin/news?page=1&pageSize=20
+X-Admin-Key: {{adminKey}}

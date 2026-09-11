@@ -1,0 +1,6 @@
+.vs/
+**/bin/
+**/obj/
+**/*.user
+Sabat.API/wwwroot/uploads/*
+!Sabat.API/wwwroot/uploads/.gitkeep

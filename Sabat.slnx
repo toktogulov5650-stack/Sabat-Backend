@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Sabat.API/Sabat.API.csproj" />
+  <Project Path="Sabat.Application/Sabat.Application.csproj" />
+  <Project Path="Sabat.Domain/Sabat.Domain.csproj" />
+  <Project Path="Sabat.Infrastructure/Sabat.Infrastructure.csproj" />
+</Solution>

@@ -8,7 +8,7 @@ using Sabat.Domain;
 namespace Sabat.API.Controllers;
 
 [ApiController]
-[Authorize(Policy = AdminApiKeyOptions.PolicyName)]
+[Authorize(Policy = AdminApiKeyOptions.SessionPolicyName)]
 [Route("api/admin/contacts")]
 public sealed class AdminContactsController(IContactService contactService) : ControllerBase
 {

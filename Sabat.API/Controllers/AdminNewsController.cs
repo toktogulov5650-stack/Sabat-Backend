@@ -9,7 +9,7 @@ using Sabat.Domain;
 namespace Sabat.API.Controllers;
 
 [ApiController]
-[Authorize(Policy = AdminApiKeyOptions.PolicyName)]
+[Authorize(Policy = AdminApiKeyOptions.SessionPolicyName)]
 [Route("api/admin/news")]
 public sealed class AdminNewsController(INewsService newsService, IFileStorage fileStorage) : ControllerBase
 {

@@ -57,9 +57,9 @@ development only and must never be reused in production.
 - `POST /api/admin/news/images` — protected local image upload
 - `GET /health` — Cloud Run health endpoint
 
-The first administrator is created once through the bootstrap endpoint with the
-technical `X-Admin-Key`. Normal administrator access uses a signed JWT stored in
-an `HttpOnly`, `Secure` cookie. State-changing requests from the admin frontend
+The technical `X-Admin-Key` is accepted only by the one-time bootstrap endpoint
+that creates the first administrator. All normal administrator access uses a
+signed JWT stored in an `HttpOnly`, `Secure` cookie. State-changing requests from the admin frontend
 must also include the `X-CSRF-Token` value returned by login. Browser requests
 must use `credentials: "include"`, and the exact frontend origin must be listed
 in CORS configuration.

@@ -60,7 +60,7 @@ public sealed class AdminApiKeyOperationFilter : IOperationFilter
         operation.Responses ??= [];
         operation.Responses.TryAdd("401", new OpenApiResponse
         {
-            Description = "A valid administrative API key is required."
+            Description = "Administrator authentication is required."
         });
         operation.Responses.TryAdd("403", new OpenApiResponse
         {

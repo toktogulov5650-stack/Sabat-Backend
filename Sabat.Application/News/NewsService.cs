@@ -184,8 +184,36 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
         article.PublishedAt = ResolvePublishedAt(request.Status, request.PublishedAt, timeProvider.GetUtcNow());
         article.UpdatedAt = timeProvider.GetUtcNow();
 
-        dbContext.NewsTranslations.RemoveRange(article.Translations);
-        article.Translations = request.Translations.Select(ToEntity).ToList();
+        var requestedLanguages = request.Translations
+            .Select(item => item.Language.Trim().ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var removedTranslations = article.Translations
+            .Where(item => !requestedLanguages.Contains(item.Language))
+            .ToArray();
+        dbContext.NewsTranslations.RemoveRange(removedTranslations);
+        foreach (var removedTranslation in removedTranslations)
+        {
+            article.Translations.Remove(removedTranslation);
+        }
+
+        foreach (var translationRequest in request.Translations)
+        {
+            var language = translationRequest.Language.Trim().ToLowerInvariant();
+            var translation = article.Translations.FirstOrDefault(item => item.Language == language);
+            if (translation is null)
+            {
+                translation = ToEntity(translationRequest);
+                translation.NewsArticleId = article.Id;
+                article.Translations.Add(translation);
+                dbContext.NewsTranslations.Add(translation);
+                continue;
+            }
+
+            translation.Category = translationRequest.Category.Trim();
+            translation.Title = translationRequest.Title.Trim();
+            translation.Excerpt = translationRequest.Excerpt.Trim();
+            translation.Content = translationRequest.Content.Trim();
+        }
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToAdminDto(article);
@@ -339,8 +367,11 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
         return slug;
     }
 
-    private static DateTimeOffset? ResolvePublishedAt(NewsStatus status, DateTimeOffset? requested, DateTimeOffset now) =>
-        status == NewsStatus.Published ? requested ?? now : requested;
+    private static DateTimeOffset? ResolvePublishedAt(NewsStatus status, DateTimeOffset? requested, DateTimeOffset now)
+    {
+        var publishedAt = status == NewsStatus.Published ? requested ?? now : requested;
+        return publishedAt?.ToUniversalTime();
+    }
 
     private static NewsTranslation ToEntity(NewsTranslationRequest request) => new()
     {

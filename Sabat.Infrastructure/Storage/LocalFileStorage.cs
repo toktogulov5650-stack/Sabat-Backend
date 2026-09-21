@@ -62,4 +62,31 @@ public sealed class LocalFileStorage(IOptions<FileStorageOptions> options) : IFi
             ? relativeUrl
             : $"{_options.PublicBaseUrl.TrimEnd('/')}{relativeUrl}";
     }
+
+    public async Task<bool> CopyNewsImageToAsync(
+        string objectName,
+        Stream destination,
+        CancellationToken cancellationToken = default)
+    {
+        var root = Path.GetFullPath(Path.IsPathRooted(_options.RootPath)
+            ? _options.RootPath
+            : Path.Combine(AppContext.BaseDirectory, _options.RootPath));
+        var relativePath = objectName.Replace('/', Path.DirectorySeparatorChar);
+        var sourcePath = Path.GetFullPath(Path.Combine(root, relativePath));
+        if (!sourcePath.StartsWith($"{root}{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(sourcePath))
+        {
+            return false;
+        }
+
+        await using var source = new FileStream(
+            sourcePath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            81920,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        await source.CopyToAsync(destination, cancellationToken);
+        return true;
+    }
 }

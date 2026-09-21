@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Google.Cloud.Storage.V1;
 using Sabat.Application.Abstractions;
 using Sabat.Infrastructure.Persistence;
 using Sabat.Infrastructure.Security;
@@ -24,6 +25,8 @@ public static class DependencyInjection
         var storageSection = configuration.GetSection(FileStorageOptions.SectionName);
         services.Configure<FileStorageOptions>(options =>
         {
+            options.Provider = storageSection["Provider"] ?? options.Provider;
+            options.BucketName = storageSection["BucketName"] ?? options.BucketName;
             options.RootPath = storageSection["RootPath"] ?? options.RootPath;
             options.PublicBaseUrl = storageSection["PublicBaseUrl"] ?? options.PublicBaseUrl;
             if (long.TryParse(storageSection["MaxNewsImageBytes"], out var maxBytes))
@@ -31,7 +34,16 @@ public static class DependencyInjection
                 options.MaxNewsImageBytes = maxBytes;
             }
         });
-        services.AddScoped<IFileStorage, LocalFileStorage>();
+        var storageProvider = storageSection["Provider"] ?? "Local";
+        if (storageProvider.Equals("GoogleCloudStorage", StringComparison.OrdinalIgnoreCase))
+        {
+            services.AddSingleton(_ => StorageClient.Create());
+            services.AddScoped<IFileStorage, GoogleCloudStorageFileStorage>();
+        }
+        else
+        {
+            services.AddScoped<IFileStorage, LocalFileStorage>();
+        }
         return services;
     }
 }

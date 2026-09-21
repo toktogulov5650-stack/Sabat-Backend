@@ -48,12 +48,14 @@ public sealed class ContactService(ISabatDbContext dbContext, TimeProvider timeP
 
         if (from.HasValue)
         {
-            query = query.Where(message => message.CreatedAt >= from.Value);
+            var fromUtc = from.Value.ToUniversalTime();
+            query = query.Where(message => message.CreatedAt >= fromUtc);
         }
 
         if (to.HasValue)
         {
-            query = query.Where(message => message.CreatedAt <= to.Value);
+            var toUtc = to.Value.ToUniversalTime();
+            query = query.Where(message => message.CreatedAt <= toUtc);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

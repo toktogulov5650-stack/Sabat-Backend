@@ -52,6 +52,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
+builder.Services.AddOutputCache(options =>
+{
+    options.AddPolicy("PublicNews", policy => policy
+        .Expire(TimeSpan.FromSeconds(60))
+        .SetVaryByQuery("*"));
+});
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<INewsService, NewsService>();
@@ -148,11 +154,6 @@ builder.Services
     });
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy(AdminApiKeyOptions.PolicyName, policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.RequireRole("Admin");
-    });
     options.AddPolicy(AdminApiKeyOptions.ApiKeyPolicyName, policy =>
     {
         policy.AddAuthenticationSchemes(AdminApiKeyOptions.SchemeName);
@@ -216,6 +217,7 @@ app.UseExceptionHandler();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.UseCors();
+app.UseOutputCache();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseMiddleware<AdminCsrfMiddleware>();

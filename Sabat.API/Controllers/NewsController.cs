@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.OutputCaching;
 using Sabat.Application.Common;
 using Sabat.Application.News;
 
@@ -6,6 +7,8 @@ namespace Sabat.API.Controllers;
 
 [ApiController]
 [Route("api/news")]
+[OutputCache(PolicyName = "PublicNews")]
+[ResponseCache(Duration = 60, Location = ResponseCacheLocation.Any)]
 public sealed class NewsController(INewsService newsService) : ControllerBase
 {
     [HttpGet]

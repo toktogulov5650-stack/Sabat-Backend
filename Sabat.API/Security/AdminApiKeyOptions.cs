@@ -4,7 +4,6 @@ public sealed class AdminApiKeyOptions
 {
     public const string SectionName = "Admin";
     public const string SchemeName = "AdminApiKey";
-    public const string PolicyName = "Admin";
     public const string ApiKeyPolicyName = "AdminApiKeyOnly";
     public const string SessionPolicyName = "AdminSessionOnly";
     public const string SelectorSchemeName = "AdminAuthentication";

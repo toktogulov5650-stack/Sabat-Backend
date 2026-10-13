@@ -137,9 +137,9 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
 
     public async Task<AdminNewsDto> CreateAsync(UpsertNewsRequest request, CancellationToken cancellationToken)
     {
+        request = Normalize(request);
         Validate(request);
-        var slug = ResolveSlug(request);
-        await EnsureSlugIsUniqueAsync(slug, null, cancellationToken);
+        var slug = await ResolveUniqueSlugAsync(request, null, cancellationToken);
         var now = timeProvider.GetUtcNow();
 
         var article = new NewsArticle
@@ -163,6 +163,7 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
 
     public async Task<AdminNewsDto> UpdateAsync(Guid id, UpsertNewsRequest request, CancellationToken cancellationToken)
     {
+        request = Normalize(request);
         Validate(request);
         var article = await dbContext.NewsArticles
             .Include(item => item.Translations)
@@ -173,8 +174,7 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
             throw new NotFoundException("News article was not found.");
         }
 
-        var slug = ResolveSlug(request);
-        await EnsureSlugIsUniqueAsync(slug, id, cancellationToken);
+        var slug = await ResolveUniqueSlugAsync(request, id, cancellationToken);
 
         article.Slug = slug;
         article.Category = request.CategoryKey.Trim().ToLowerInvariant();
@@ -279,7 +279,10 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
     private static void Validate(UpsertNewsRequest request)
     {
         var errors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
-        AddRequiredAndLengthError(errors, "categoryKey", request.CategoryKey, 80);
+        if (request.CategoryKey.Length > 80)
+        {
+            AddError(errors, "categoryKey", "Value cannot exceed 80 characters.");
+        }
 
         if (request.Author?.Length > 120)
         {
@@ -324,17 +327,6 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
             AddRequiredAndLengthError(errors, $"{key}.content", translation.Content, 50_000);
         }
 
-        if (request.Status == NewsStatus.Published)
-        {
-            foreach (var language in SupportedLanguages.All)
-            {
-                if (!translations.Any(item => string.Equals(item.Language, language, StringComparison.OrdinalIgnoreCase)))
-                {
-                    AddError(errors, "translations", $"Translation '{language}' is required before publishing.");
-                }
-            }
-        }
-
         if (errors.Count > 0)
         {
             throw new RequestValidationException(errors.ToDictionary(item => item.Key, item => item.Value.ToArray()));
@@ -343,13 +335,90 @@ public sealed class NewsService(ISabatDbContext dbContext, TimeProvider timeProv
 
     private static void ValidatePublishedTranslations(IEnumerable<NewsTranslation> translations)
     {
-        var languages = translations.Select(item => item.Language).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var missing = SupportedLanguages.All.Where(language => !languages.Contains(language)).ToArray();
-        if (missing.Length > 0)
+        if (!translations.Any())
         {
-            throw ValidationError("translations", $"Translations are missing: {string.Join(", ", missing)}.");
+            throw ValidationError("translations", "At least one translation is required before publishing.");
         }
     }
+
+    private static UpsertNewsRequest Normalize(UpsertNewsRequest request)
+    {
+        var categoryKey = string.IsNullOrWhiteSpace(request.CategoryKey)
+            ? "news"
+            : request.CategoryKey.Trim();
+
+        var translations = (request.Translations ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item.Title) ||
+                           !string.IsNullOrWhiteSpace(item.Content) ||
+                           !string.IsNullOrWhiteSpace(item.Excerpt))
+            .Select(item => new NewsTranslationRequest
+            {
+                Language = item.Language,
+                Category = string.IsNullOrWhiteSpace(item.Category) ? categoryKey : item.Category,
+                Title = item.Title,
+                Excerpt = string.IsNullOrWhiteSpace(item.Excerpt) ? BuildExcerpt(item.Content) : item.Excerpt,
+                Content = item.Content
+            })
+            .ToArray();
+
+        return new UpsertNewsRequest
+        {
+            Slug = request.Slug,
+            CategoryKey = categoryKey,
+            Author = request.Author,
+            CoverImageUrl = request.CoverImageUrl,
+            Status = request.Status,
+            PublishedAt = request.PublishedAt,
+            Translations = translations
+        };
+    }
+
+    private static string BuildExcerpt(string? content)
+    {
+        var text = (content ?? string.Empty).Trim();
+        return text.Length <= 200 ? text : text[..200].TrimEnd() + "…";
+    }
+
+    private async Task<string> ResolveUniqueSlugAsync(
+        UpsertNewsRequest request,
+        Guid? currentId,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(request.Slug))
+        {
+            var explicitSlug = ResolveSlug(request);
+            await EnsureSlugIsUniqueAsync(explicitSlug, currentId, cancellationToken);
+            return explicitSlug;
+        }
+
+        var source = request.Translations
+                         .FirstOrDefault(item => item.Language.Equals("ru", StringComparison.OrdinalIgnoreCase))?.Title
+                     ?? request.Translations.FirstOrDefault()?.Title
+                     ?? string.Empty;
+        var baseSlug = SlugGenerator.Generate(source);
+        if (baseSlug.Length > 170)
+        {
+            baseSlug = baseSlug[..170].Trim('-');
+        }
+
+        if (baseSlug.Length < 3)
+        {
+            baseSlug = "news";
+        }
+
+        var candidate = baseSlug;
+        for (var suffix = 2; await SlugExistsAsync(candidate, currentId, cancellationToken); suffix++)
+        {
+            candidate = $"{baseSlug}-{suffix}";
+        }
+
+        return candidate;
+    }
+
+    private Task<bool> SlugExistsAsync(string slug, Guid? currentId, CancellationToken cancellationToken) =>
+        dbContext.NewsArticles.AnyAsync(
+            article => article.Slug == slug && (!currentId.HasValue || article.Id != currentId.Value),
+            cancellationToken);
 
     private static string ResolveSlug(UpsertNewsRequest request)
     {
